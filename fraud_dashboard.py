@@ -3,45 +3,45 @@ import pandas as pd
 import numpy as np
 
 # ==========================================
-# 1. THE MOCK DATA (Simulated Banking Feed)
+# 1. THE MOCK DATA & AI SIMULATOR
 # ==========================================
 def load_mock_data():
     data = [
         {"tx_id": "TXN-1001", "amount": 45.50, "type": "Domestic", "device": "Known", "acc_age_days": 400, "ai_anomaly_score": 12},
-        {"tx_id": "TXN-1002", "amount": 8500.00, "type": "Domestic", "device": "Known", "acc_age_days": 15, "ai_anomaly_score": 85}, # High risk AI & Rule
-        {"tx_id": "TXN-1003", "amount": 120.00, "type": "International", "device": "New", "acc_age_days": 300, "ai_anomaly_score": 65}, # Borderline
-        {"tx_id": "TXN-1004", "amount": 9500.00, "type": "International", "device": "New", "acc_age_days": 800, "ai_anomaly_score": 92}, # Total Fraud
+        {"tx_id": "TXN-1002", "amount": 8500.00, "type": "Domestic", "device": "Known", "acc_age_days": 15, "ai_anomaly_score": 85},
+        {"tx_id": "TXN-1003", "amount": 120.00, "type": "International", "device": "New", "acc_age_days": 300, "ai_anomaly_score": 65},
+        {"tx_id": "TXN-1004", "amount": 9500.00, "type": "International", "device": "New", "acc_age_days": 800, "ai_anomaly_score": 92},
         {"tx_id": "TXN-1005", "amount": 15.00, "type": "Domestic", "device": "Known", "acc_age_days": 1200, "ai_anomaly_score": 5},
-        {"tx_id": "TXN-1006", "amount": 5500.00, "type": "Domestic", "device": "New", "acc_age_days": 10, "ai_anomaly_score": 45}, # Fails rule, low AI
-        {"tx_id": "TXN-1007", "amount": 30.00, "type": "International", "device": "Known", "acc_age_days": 500, "ai_anomaly_score": 18},
     ]
     return pd.DataFrame(data)
 
+def simulate_ai_score(amount, location, device, acc_age):
+    # This simulates our "Black Box" Machine Learning model
+    score = 5
+    if amount > 1000: score += 15
+    if amount > 5000: score += 25
+    if location == "International": score += 25
+    if device == "New": score += 30
+    if acc_age < 30: score += 15
+    return min(max(int(score), 0), 100) # Keep score between 0 and 100
+
 # ==========================================
-# 2. THE EXPERT SYSTEM (Knowledge Base & Rules)
+# 2. THE EXPERT SYSTEM (Knowledge Base)
 # ==========================================
-def evaluate_rules(row):
+def evaluate_rules(amount, location, device, acc_age):
     rules_failed = []
-    
-    # Rule 1: High-Value New Account Check
-    if row['amount'] > 5000 and row['acc_age_days'] < 30:
+    if amount > 5000 and acc_age < 30:
         rules_failed.append("Rule 1: Large transaction on new account (< 30 days).")
-        
-    # Rule 2: Geo-Consistency Check
-    if row['type'] == "International" and row['device'] == "New":
+    if location == "International" and device == "New":
         rules_failed.append("Rule 2: International transaction from an unrecognized device.")
-        
-    # Rule 3: Extreme Value Sanity Check
-    if row['amount'] > 9000:
+    if amount > 9000:
         rules_failed.append("Rule 3: Transaction exceeds single-swipe sanity limit ($9,000).")
-        
     return rules_failed
 
 # ==========================================
 # 3. THE HYBRID INFERENCE ENGINE
 # ==========================================
 def get_final_verdict(ai_score, rules_failed):
-    # Combines AI perception with Rule-based logic
     if ai_score > 80 or len(rules_failed) >= 2:
         return "BLOCKED", "🚨"
     elif ai_score > 50 or len(rules_failed) == 1:
@@ -50,83 +50,47 @@ def get_final_verdict(ai_score, rules_failed):
         return "APPROVED", "✅"
 
 # ==========================================
-# 4. THE UI DASHBOARD (Streamlit Shell)
+# 4. THE UI DASHBOARD
 # ==========================================
 st.set_page_config(page_title="AI Fraud Investigator", layout="wide")
 
-st.title("🛡️ Hybrid AI & Expert System: Fraud Investigator")
-st.markdown("Monitoring live transaction feeds using Machine Learning Anomaly Detection and Rule-Based Logic.")
+# --- SIDEBAR: CUSTOM INPUT FORM ---
+st.sidebar.header("🛠️ Custom Simulator")
+st.sidebar.markdown("Test the hybrid system by entering custom transaction details below.")
 
-# Load Data
-df = load_mock_data()
-
-# Apply the Hybrid Engine to all data
-df['rules_failed'] = df.apply(evaluate_rules, axis=1)
-df['status_data'] = df.apply(lambda x: get_final_verdict(x['ai_anomaly_score'], x['rules_failed']), axis=1)
-df['Status'] = df['status_data'].apply(lambda x: x[0])
-df['Icon'] = df['status_data'].apply(lambda x: x[1])
-
-# --- TOP METRICS ---
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total Transactions", len(df))
-col2.metric("Approved", len(df[df['Status'] == 'APPROVED']))
-col3.metric("Flagged for Review", len(df[df['Status'] == 'REVIEW']))
-col4.metric("Blocked Fraud", len(df[df['Status'] == 'BLOCKED']))
-
-st.divider()
+with st.sidebar.form("custom_tx_form"):
+    custom_amount = st.number_input("Transaction Amount ($)", min_value=0.0, value=250.00, step=50.0)
+    custom_location = st.selectbox("Location", ["Domestic", "International"])
+    custom_device = st.selectbox("Device Status", ["Known", "New"])
+    custom_age = st.number_input("Account Age (Days)", min_value=0, value=365, step=30)
+    
+    submitted = st.form_submit_button("Run Analysis")
 
 # --- MAIN LAYOUT ---
-left_col, right_col = st.columns([2, 1])
+st.title("🛡️ Hybrid AI & Expert System: Fraud Investigator")
+st.markdown("Monitoring live transaction feeds using Machine Learning Anomaly Detection and Rule-Based Logic.")
+st.divider()
 
-with left_col:
-    st.subheader("Live Transaction Feed")
-    # Display a clean version of the dataframe
-    display_df = df[['Icon', 'tx_id', 'amount', 'type', 'device', 'Status']]
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+left_col, right_col = st.columns([1.5, 1])
 
-with right_col:
-    st.subheader("Detailed Investigation")
-    st.markdown("Select a Transaction ID to view the AI and Expert System reasoning.")
-    
-    # Dropdown to select a transaction
-    selected_tx = st.selectbox("Select TX_ID:", df['tx_id'])
-    
-    if selected_tx:
-        # Get the specific row of data
-        tx_data = df[df['tx_id'] == selected_tx].iloc[0]
+# If the user submitted a custom transaction, show that. Otherwise, show the feed.
+if submitted:
+    with left_col:
+        st.subheader("📡 Live Intercept: Custom Transaction")
+        st.info("The system has intercepted the manual transaction you just submitted. Analyzing routing data...")
         
-        # Display Details
-        st.markdown(f"**Amount:** ${tx_data['amount']}")
-        st.markdown(f"**Location:** {tx_data['type']}")
-        st.markdown(f"**Device:** {tx_data['device']}")
-        st.markdown(f"**Account Age:** {tx_data['acc_age_days']} days")
+        # Display the custom inputs cleanly
+        st.markdown(f"**Amount:** ${custom_amount:,.2f}")
+        st.markdown(f"**Location:** {custom_location}")
+        st.markdown(f"**Device:** {custom_device}")
+        st.markdown(f"**Account Age:** {custom_age} days")
         
-        st.divider()
+        if st.button("← Back to Live Feed"):
+            st.rerun()
+
+    with right_col:
+        st.subheader("Detailed Investigation")
         
-        # Display AI Component
-        st.write("### 🧠 AI Anomaly Engine")
-        score = tx_data['ai_anomaly_score']
-        st.progress(score / 100)
-        st.write(f"**Statistical Anomaly Score:** {score}/100")
-        
-        st.divider()
-        
-        # Display Expert System Component
-        st.write("### 📜 Expert System Rules")
-        rules = tx_data['rules_failed']
-        if len(rules) == 0:
-            st.success("All Rules Passed.")
-        else:
-            for rule in rules:
-                st.error(f"FAIL: {rule}")
-                
-        st.divider()
-        
-        # Final Verdict
-        st.write("### ⚖️ Final Verdict")
-        if tx_data['Status'] == 'APPROVED':
-            st.success(f"{tx_data['Icon']} APPROVED: Transaction aligns with user behavior and passes all rules.")
-        elif tx_data['Status'] == 'REVIEW':
-            st.warning(f"{tx_data['Icon']} REVIEW: Transaction flagged due to moderate AI score or a single rule violation.")
-        else:
-            st.error(f"{tx_data['Icon']} BLOCKED: High probability of fraud detected by the hybrid system.")
+        # Run the logic on custom inputs
+        ai_score = simulate_ai_score(custom_amount, custom_location, custom_device, custom_age)
+        rules = evaluate_rules(custom_amount, custom
