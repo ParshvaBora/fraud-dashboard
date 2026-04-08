@@ -93,4 +93,46 @@ if submitted:
         
         # Run the logic on custom inputs
         ai_score = simulate_ai_score(custom_amount, custom_location, custom_device, custom_age)
-        rules = evaluate_rules(custom_amount, custom
+        rules = evaluate_rules(custom_amount, custom_location, custom_device, custom_age)
+        status, icon = get_final_verdict(ai_score, rules)
+        
+        # Display AI
+        st.write("### 🧠 AI Anomaly Engine")
+        st.progress(ai_score / 100)
+        st.write(f"**Statistical Anomaly Score:** {ai_score}/100")
+        st.divider()
+        
+        # Display Rules
+        st.write("### 📜 Expert System Rules")
+        if len(rules) == 0:
+            st.success("All Rules Passed.")
+        else:
+            for rule in rules:
+                st.error(f"FAIL: {rule}")
+        st.divider()
+        
+        # Final Verdict
+        st.write("### ⚖️ Final Verdict")
+        if status == 'APPROVED':
+            st.success(f"{icon} APPROVED: Transaction aligns with user behavior.")
+        elif status == 'REVIEW':
+            st.warning(f"{icon} REVIEW: Moderate anomaly score or single rule violation.")
+        else:
+            st.error(f"{icon} BLOCKED: High probability of fraud detected.")
+
+else:
+    # Standard Feed View
+    df = load_mock_data()
+    df['rules_failed'] = df.apply(lambda x: evaluate_rules(x['amount'], x['type'], x['device'], x['acc_age_days']), axis=1)
+    df['status_data'] = df.apply(lambda x: get_final_verdict(x['ai_anomaly_score'], x['rules_failed']), axis=1)
+    df['Status'] = df['status_data'].apply(lambda x: x[0])
+    df['Icon'] = df['status_data'].apply(lambda x: x[1])
+
+    with left_col:
+        st.subheader("Live Transaction Feed")
+        display_df = df[['Icon', 'tx_id', 'amount', 'type', 'device', 'Status']]
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    with right_col:
+        st.subheader("Investigation Mode")
+        st.markdown("👈 Use the **Custom Simulator** in the sidebar to test your own data, or view the feed on the left.")
